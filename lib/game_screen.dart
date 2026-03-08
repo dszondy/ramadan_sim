@@ -27,7 +27,6 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   static const double _playerDrag = 2400;
   static const double _playerAspectRatio = 0.62;
   static const double _backgroundAspectRatio = 8.0;
-  static const double _obstacleSize = 72;
   static const double _baseObstacleSpeed = 200;
   static const double _obstacleSpeedVariance = 130;
   static const double _difficultyRampPerSecond = 14;
@@ -35,6 +34,15 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   static const double _playerHitboxHeightFactor = 0.78;
   static const double _obstacleHitboxWidthFactor = 0.68;
   static const double _obstacleHitboxHeightFactor = 0.68;
+  static const double _smallBackgroundBreakpoint = 480;
+  static const double _mobileBackgroundBreakpoint = 700;
+  static const double _obstacleSizeFactor = 44 / 420;
+  static const double _obstacleRespawnOffsetFactor = 180 / 420;
+  static const double _obstacleCleanupOffsetFactor = 40 / 420;
+  static const double _obstacleBaseSpeedFactor = _baseObstacleSpeed / 420;
+  static const double _obstacleSpeedVarianceFactor =
+      _obstacleSpeedVariance / 420;
+  static const double _difficultyRampFactor = _difficultyRampPerSecond / 420;
 
   final math.Random _random = math.Random();
   final Stopwatch _stopwatch = Stopwatch();
@@ -52,6 +60,8 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   bool _moveLeftPressed = false;
   bool _moveRightPressed = false;
   double? _touchTargetWorldX;
+  String? _resolvedBackgroundAssetPath;
+  int _backgroundLoadGeneration = 0;
 
   @override
   void initState() {
@@ -69,6 +79,12 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     _stopwatch.stop();
     _keyboardFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _queueBackgroundResolution();
   }
 
   void _resetGame() {
@@ -89,6 +105,76 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   double get _playerHeight => _viewportHeight * 0.25;
 
   double get _playerWidth => _playerHeight * _playerAspectRatio;
+
+  double get _obstacleSize => _viewportHeight * _obstacleSizeFactor;
+
+  double get _obstacleRespawnOffset =>
+      _viewportHeight * _obstacleRespawnOffsetFactor;
+
+  double get _obstacleCleanupOffset =>
+      _viewportHeight * _obstacleCleanupOffsetFactor;
+
+  List<String> get _backgroundAssetCandidates {
+    if (_viewportWidth <= _smallBackgroundBreakpoint) {
+      return const [
+        'assets/rs_bg_small.webp',
+        'assets/rs_bg_mobile.webp',
+        'assets/rs_bg.webp',
+      ];
+    }
+
+    if (_viewportWidth <= _mobileBackgroundBreakpoint) {
+      return const [
+        'assets/rs_bg_mobile.webp',
+        'assets/rs_bg_small.webp',
+        'assets/rs_bg.webp',
+      ];
+    }
+
+    return const [
+      'assets/rs_bg.webp',
+      'assets/rs_bg_mobile.webp',
+      'assets/rs_bg_small.webp',
+    ];
+  }
+
+  void _queueBackgroundResolution() {
+    if (!mounted) {
+      return;
+    }
+
+    final generation = ++_backgroundLoadGeneration;
+    unawaited(_resolveBackgroundAsset(generation));
+  }
+
+  Future<void> _resolveBackgroundAsset(int generation) async {
+    for (final assetPath in _backgroundAssetCandidates) {
+      try {
+        await precacheImage(AssetImage(assetPath), context);
+
+        if (!mounted || generation != _backgroundLoadGeneration) {
+          return;
+        }
+
+        if (_resolvedBackgroundAssetPath != assetPath) {
+          setState(() {
+            _resolvedBackgroundAssetPath = assetPath;
+          });
+        }
+        return;
+      } catch (_) {
+        // Try the next smaller background asset.
+      }
+    }
+
+    if (!mounted || generation != _backgroundLoadGeneration) {
+      return;
+    }
+
+    setState(() {
+      _resolvedBackgroundAssetPath = null;
+    });
+  }
 
   Rect _playerHitbox(double playerCenterX) {
     final hitboxWidth = _playerWidth * _playerHitboxWidthFactor;
@@ -115,6 +201,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   }
 
   _FallingObstacle _createObstacle(int index) {
+    final obstacleSize = _obstacleSize;
     final spacing = _viewportHeight / _obstacleCount;
     final initialY =
         (index * spacing * 0.9) -
@@ -123,18 +210,20 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     final initialSpeed = _nextObstacleSpeed(_elapsedSeconds);
 
     return _FallingObstacle(
-      x: _random.nextDouble() * (_worldWidth - _obstacleSize),
+      x: _random.nextDouble() * (_worldWidth - obstacleSize),
       y: initialY,
-      width: _obstacleSize,
-      height: _obstacleSize,
+      width: obstacleSize,
+      height: obstacleSize,
       speed: initialSpeed,
       assetPath: _fallingObjectAssets[index % _fallingObjectAssets.length],
     );
   }
 
   double _nextObstacleSpeed(double elapsedSeconds) {
-    final ramp = elapsedSeconds * _difficultyRampPerSecond;
-    return _baseObstacleSpeed + ramp + _random.nextDouble() * _obstacleSpeedVariance;
+    final ramp = elapsedSeconds * (_viewportHeight * _difficultyRampFactor);
+    return (_viewportHeight * _obstacleBaseSpeedFactor) +
+        ramp +
+        _random.nextDouble() * (_viewportHeight * _obstacleSpeedVarianceFactor);
   }
 
   void _tick() {
@@ -186,6 +275,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     }
 
     final nextObstacles = <_FallingObstacle>[];
+    final obstacleSize = _obstacleSize;
 
     for (final obstacle in _obstacles) {
       var nextY = obstacle.y + obstacle.speed * elapsed;
@@ -193,9 +283,9 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       var nextSpeed = obstacle.speed;
       var nextAssetPath = obstacle.assetPath;
 
-      if (nextY > _viewportHeight + 40) {
-        nextX = _random.nextDouble() * (_worldWidth - _obstacleSize);
-        nextY = -_obstacleSize - _random.nextDouble() * 180;
+      if (nextY > _viewportHeight + _obstacleCleanupOffset) {
+        nextX = _random.nextDouble() * (_worldWidth - obstacleSize);
+        nextY = -obstacleSize - _random.nextDouble() * _obstacleRespawnOffset;
         nextSpeed = _nextObstacleSpeed(_elapsedSeconds);
         nextAssetPath =
             _fallingObjectAssets[_random.nextInt(_fallingObjectAssets.length)];
@@ -205,8 +295,8 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
         _FallingObstacle(
           x: nextX,
           y: nextY,
-          width: _obstacleSize,
-          height: _obstacleSize,
+          width: obstacleSize,
+          height: obstacleSize,
           speed: nextSpeed,
           assetPath: nextAssetPath,
         ),
@@ -277,10 +367,14 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     final nextWidth = size.width;
     final nextHeight = size.height;
     final previousWorldWidth = _worldWidth;
+    final previousViewportHeight = _viewportHeight;
     final nextWorldWidth = math.max(
       nextHeight * 0.5 * _backgroundAspectRatio,
       nextWidth + 1,
     );
+    final nextObstacleSize = nextHeight * _obstacleSizeFactor;
+    final heightRatio =
+        previousViewportHeight == 0 ? 1.0 : nextHeight / previousViewportHeight;
 
     if ((nextWidth - _viewportWidth).abs() < 0.1 &&
         (nextHeight - _viewportHeight).abs() < 0.1) {
@@ -300,13 +394,19 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       _obstacles = _obstacles
           .map(
             (obstacle) => obstacle.copyWith(
-              x:
-                  (obstacle.x / math.max(1, previousWorldWidth)) *
-                  nextWorldWidth,
+              x: ((obstacle.x / math.max(1, previousWorldWidth)) *
+                      nextWorldWidth)
+                  .clamp(0.0, math.max(0.0, nextWorldWidth - nextObstacleSize)),
+              y: obstacle.y * heightRatio,
+              width: nextObstacleSize,
+              height: nextObstacleSize,
+              speed: obstacle.speed * heightRatio,
             ),
           )
           .toList();
     });
+
+    _queueBackgroundResolution();
   }
 
   @override
@@ -372,18 +472,20 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
                     Positioned(
                       left: -cameraX,
                       top: _viewportHeight * 0.5,
-                      child: Image.asset(
-                        'assets/rs_bg.webp',
+                      child: SizedBox(
                         width: _worldWidth,
                         height: _viewportHeight * 0.5,
-                        fit: BoxFit.fill,
-                        errorBuilder: (context, error, stackTrace) {
-                          return SizedBox(
-                            width: _worldWidth,
-                            height: _viewportHeight * 0.5,
-                            child: const ColoredBox(color: Color(0xFF7ED957)),
-                          );
-                        },
+                        child: _resolvedBackgroundAssetPath == null
+                            ? const ColoredBox(color: Color(0xFF7ED957))
+                            : Image.asset(
+                                _resolvedBackgroundAssetPath!,
+                                fit: BoxFit.fill,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const ColoredBox(
+                                    color: Color(0xFF7ED957),
+                                  );
+                                },
+                              ),
                       ),
                     ),
                     for (final obstacle in _obstacles)
