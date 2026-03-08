@@ -27,9 +27,9 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   static const double _playerDrag = 2400;
   static const double _playerAspectRatio = 0.62;
   static const double _backgroundAspectRatio = 8.0;
-  static const double _baseObstacleSpeed = 200;
+  static const double _baseObstacleSpeed = 180;
   static const double _obstacleSpeedVariance = 130;
-  static const double _difficultyRampPerSecond = 14;
+  static const double _difficultyRampPerSecond = 12;
   static const double _playerHitboxWidthFactor = 0.46;
   static const double _playerHitboxHeightFactor = 0.78;
   static const double _obstacleHitboxWidthFactor = 0.68;
