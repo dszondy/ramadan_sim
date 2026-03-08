@@ -34,8 +34,10 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   static const double _playerHitboxHeightFactor = 0.78;
   static const double _obstacleHitboxWidthFactor = 0.68;
   static const double _obstacleHitboxHeightFactor = 0.68;
+  static const double _touchDeadZone = 12;
   static const double _smallBackgroundBreakpoint = 480;
   static const double _mobileBackgroundBreakpoint = 700;
+  static const double _mobileSpriteBreakpoint = 700;
   static const double _obstacleSizeFactor = 44 / 420;
   static const double _obstacleRespawnOffsetFactor = 180 / 420;
   static const double _obstacleCleanupOffsetFactor = 40 / 420;
@@ -59,7 +61,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   bool _gameOverTriggered = false;
   bool _moveLeftPressed = false;
   bool _moveRightPressed = false;
-  double? _touchTargetWorldX;
+  double? _touchPointerScreenX;
   String? _resolvedBackgroundAssetPath;
   int _backgroundLoadGeneration = 0;
 
@@ -98,7 +100,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     _gameOverTriggered = false;
     _moveLeftPressed = false;
     _moveRightPressed = false;
-    _touchTargetWorldX = null;
+    _touchPointerScreenX = null;
     _obstacles = List.generate(_obstacleCount, _createObstacle);
   }
 
@@ -113,6 +115,8 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
 
   double get _obstacleCleanupOffset =>
       _viewportHeight * _obstacleCleanupOffsetFactor;
+
+  bool get _preferMobileSprites => _viewportWidth <= _mobileSpriteBreakpoint;
 
   List<String> get _backgroundAssetCandidates {
     if (_viewportWidth <= _smallBackgroundBreakpoint) {
@@ -136,6 +140,19 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       'assets/rs_bg_mobile.webp',
       'assets/rs_bg_small.webp',
     ];
+  }
+
+  String _spriteAssetPath(String assetPath) {
+    if (!_preferMobileSprites || !assetPath.endsWith('.webp')) {
+      return assetPath;
+    }
+
+    final mobileAssetPath = assetPath.replaceFirst('.webp', '_mobile.webp');
+    if (_mobileSpriteAssets.contains(mobileAssetPath)) {
+      return mobileAssetPath;
+    }
+
+    return assetPath;
   }
 
   void _queueBackgroundResolution() {
@@ -240,13 +257,16 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     final keyboardIntent =
         (_moveRightPressed ? 1.0 : 0.0) - (_moveLeftPressed ? 1.0 : 0.0);
     var steeringIntent = keyboardIntent;
+    final currentCameraX = (_playerWorldX - _viewportWidth / 2).clamp(
+      0.0,
+      _worldWidth - _viewportWidth,
+    );
 
-    if (_touchTargetWorldX != null) {
-      final deltaToTarget = _touchTargetWorldX! - _playerWorldX;
-      if (deltaToTarget.abs() < 6) {
-        _touchTargetWorldX = null;
-      } else {
-        steeringIntent += deltaToTarget.sign;
+    if (_touchPointerScreenX != null) {
+      final playerScreenCenterX = _playerWorldX - currentCameraX;
+      final deltaToTouch = _touchPointerScreenX! - playerScreenCenterX;
+      if (deltaToTouch.abs() >= _touchDeadZone) {
+        steeringIntent += deltaToTouch.sign;
       }
     }
 
@@ -343,7 +363,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
         if (isRightKey) {
           _moveRightPressed = true;
         }
-        _touchTargetWorldX = null;
+        _touchPointerScreenX = null;
       });
       return KeyEventResult.handled;
     }
@@ -435,34 +455,22 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
               focusNode: _keyboardFocusNode,
               autofocus: true,
               onKeyEvent: _handleKeyEvent,
-              child: GestureDetector(
-                onTap: () {
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
                   if (!_keyboardFocusNode.hasFocus) {
                     _keyboardFocusNode.requestFocus();
                   }
+                  _touchPointerScreenX = event.localPosition.dx;
                 },
-                onHorizontalDragStart: (_) {
-                  if (!_keyboardFocusNode.hasFocus) {
-                    _keyboardFocusNode.requestFocus();
-                  }
+                onPointerMove: (event) {
+                  _touchPointerScreenX = event.localPosition.dx;
                 },
-                onHorizontalDragDown: (details) {
-                  setState(() {
-                    _touchTargetWorldX = details.localPosition.dx + cameraX;
-                  });
+                onPointerUp: (_) {
+                  _touchPointerScreenX = null;
                 },
-                onHorizontalDragUpdate: (details) {
-                  setState(() {
-                    _touchTargetWorldX = details.localPosition.dx + cameraX;
-                  });
-                },
-                onHorizontalDragEnd: (_) {
-                  _touchTargetWorldX = null;
-                },
-                onTapDown: (details) {
-                  setState(() {
-                    _touchTargetWorldX = details.localPosition.dx + cameraX;
-                  });
+                onPointerCancel: (_) {
+                  _touchPointerScreenX = null;
                 },
                 child: Stack(
                   children: [
@@ -496,7 +504,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
                           width: obstacle.width,
                           height: obstacle.height,
                           child: Image.asset(
-                            obstacle.assetPath,
+                            _spriteAssetPath(obstacle.assetPath),
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(color: const Color(0xFFFF6B6B));
@@ -508,7 +516,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
                       left: playerScreenX,
                       top: playerTop,
                       child: Image.asset(
-                        widget.playerAssetPath,
+                        _spriteAssetPath(widget.playerAssetPath),
                         width: _playerWidth,
                         height: _playerHeight,
                         fit: BoxFit.contain,
@@ -580,3 +588,16 @@ const List<String> _fallingObjectAssets = [
   'assets/rs_fall_6.webp',
   'assets/rs_fall_7.webp',
 ];
+
+const Set<String> _mobileSpriteAssets = {
+  'assets/rs_man_mobile.webp',
+  'assets/rs_woman_mobile.webp',
+  'assets/rs_other_mobile.webp',
+  'assets/rs_fall_1_mobile.webp',
+  'assets/rs_fall_2_mobile.webp',
+  'assets/rs_fall_3_mobile.webp',
+  'assets/rs_fall_4_mobile.webp',
+  'assets/rs_fall_5_mobile.webp',
+  'assets/rs_fall_6_mobile.webp',
+  'assets/rs_fall_7_mobile.webp',
+};
