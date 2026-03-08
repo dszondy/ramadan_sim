@@ -28,6 +28,13 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   static const double _playerAspectRatio = 0.62;
   static const double _backgroundAspectRatio = 8.0;
   static const double _obstacleSize = 72;
+  static const double _baseObstacleSpeed = 200;
+  static const double _obstacleSpeedVariance = 130;
+  static const double _difficultyRampPerSecond = 14;
+  static const double _playerHitboxWidthFactor = 0.46;
+  static const double _playerHitboxHeightFactor = 0.78;
+  static const double _obstacleHitboxWidthFactor = 0.68;
+  static const double _obstacleHitboxHeightFactor = 0.68;
 
   final math.Random _random = math.Random();
   final Stopwatch _stopwatch = Stopwatch();
@@ -83,17 +90,51 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
 
   double get _playerWidth => _playerHeight * _playerAspectRatio;
 
+  Rect _playerHitbox(double playerCenterX) {
+    final hitboxWidth = _playerWidth * _playerHitboxWidthFactor;
+    final hitboxHeight = _playerHeight * _playerHitboxHeightFactor;
+    final playerTop = _viewportHeight - _playerHeight - _playerBottomOffset;
+    final hitboxLeft = playerCenterX - hitboxWidth / 2;
+    final hitboxTop = playerTop + (_playerHeight - hitboxHeight);
+
+    return Rect.fromLTWH(
+      hitboxLeft,
+      hitboxTop,
+      hitboxWidth,
+      hitboxHeight,
+    );
+  }
+
+  Rect _obstacleHitbox(_FallingObstacle obstacle) {
+    final hitboxWidth = obstacle.width * _obstacleHitboxWidthFactor;
+    final hitboxHeight = obstacle.height * _obstacleHitboxHeightFactor;
+    final left = obstacle.x + (obstacle.width - hitboxWidth) / 2;
+    final top = obstacle.y + (obstacle.height - hitboxHeight) / 2;
+
+    return Rect.fromLTWH(left, top, hitboxWidth, hitboxHeight);
+  }
+
   _FallingObstacle _createObstacle(int index) {
     final spacing = _viewportHeight / _obstacleCount;
+    final initialY =
+        (index * spacing * 0.9) -
+        _viewportHeight * 0.8 -
+        _random.nextDouble() * 40;
+    final initialSpeed = _nextObstacleSpeed(_elapsedSeconds);
 
     return _FallingObstacle(
       x: _random.nextDouble() * (_worldWidth - _obstacleSize),
-      y: (-index * spacing) - _random.nextDouble() * 120,
+      y: initialY,
       width: _obstacleSize,
       height: _obstacleSize,
-      speed: 180 + _random.nextDouble() * 140,
+      speed: initialSpeed,
       assetPath: _fallingObjectAssets[index % _fallingObjectAssets.length],
     );
+  }
+
+  double _nextObstacleSpeed(double elapsedSeconds) {
+    final ramp = elapsedSeconds * _difficultyRampPerSecond;
+    return _baseObstacleSpeed + ramp + _random.nextDouble() * _obstacleSpeedVariance;
   }
 
   void _tick() {
@@ -155,7 +196,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       if (nextY > _viewportHeight + 40) {
         nextX = _random.nextDouble() * (_worldWidth - _obstacleSize);
         nextY = -_obstacleSize - _random.nextDouble() * 180;
-        nextSpeed = 190 + _random.nextDouble() * 180;
+        nextSpeed = _nextObstacleSpeed(_elapsedSeconds);
         nextAssetPath =
             _fallingObjectAssets[_random.nextInt(_fallingObjectAssets.length)];
       }
@@ -172,20 +213,10 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       );
     }
 
-    final playerRect = Rect.fromLTWH(
-      nextPlayerX - _playerWidth / 2,
-      _viewportHeight - _playerHeight - _playerBottomOffset,
-      _playerWidth,
-      _playerHeight,
-    );
+    final playerRect = _playerHitbox(nextPlayerX);
 
     final hit = nextObstacles.any((obstacle) {
-      final obstacleRect = Rect.fromLTWH(
-        obstacle.x,
-        obstacle.y,
-        obstacle.width,
-        obstacle.height,
-      );
+      final obstacleRect = _obstacleHitbox(obstacle);
       return playerRect.overlaps(obstacleRect);
     });
 
@@ -342,7 +373,7 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
                       left: -cameraX,
                       top: _viewportHeight * 0.5,
                       child: Image.asset(
-                        'assets/rs_bg.png',
+                        'assets/rs_bg.webp',
                         width: _worldWidth,
                         height: _viewportHeight * 0.5,
                         fit: BoxFit.fill,
@@ -439,11 +470,11 @@ class _FallingObstacle {
 }
 
 const List<String> _fallingObjectAssets = [
-  'assets/rs_fall_1.png',
-  'assets/rs_fall_2.png',
-  'assets/rs_fall_3.png',
-  'assets/rs_fall_4.png',
-  'assets/rs_fall_5.png',
-  'assets/rs_fall_6.png',
-  'assets/rs_fall_7.png',
+  'assets/rs_fall_1.webp',
+  'assets/rs_fall_2.webp',
+  'assets/rs_fall_3.webp',
+  'assets/rs_fall_4.webp',
+  'assets/rs_fall_5.webp',
+  'assets/rs_fall_6.webp',
+  'assets/rs_fall_7.webp',
 ];

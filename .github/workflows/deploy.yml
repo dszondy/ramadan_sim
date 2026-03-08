@@ -29,8 +29,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install asset optimizer dependencies
+        run: python -m pip install pillow
+
       - name: Build web app
-        run: flutter build web --release --base-href /ramadan_sim/
+        run: python tool/build_web.py --release --base-href /ramadan_sim/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

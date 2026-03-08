@@ -18,8 +18,14 @@ void main() {
     await tester.tap(find.text('MAN'));
     await tester.pumpAndSettle();
 
+    expect(find.text('CAUTON!!!'), findsOneWidget);
+    expect(find.text('I UNDERSTAND'), findsOneWidget);
+
+    await tester.tap(find.text('I UNDERSTAND'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Ready?'), findsOneWidget);
-    expect(find.text('Selected: MAN'), findsOneWidget);
+    expect(find.text('START'), findsOneWidget);
 
     await tester.tap(find.text('START'));
     await tester.pumpAndSettle();

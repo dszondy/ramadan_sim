@@ -9,7 +9,7 @@ void main() {
 
 enum ParticipantType { man, woman, other }
 
-enum AppScreen { genderQuestion, accelerometerPrompt, ready, game, brokeFast }
+enum AppScreen { genderQuestion, caution, ready, game, brokeFast }
 
 class RamadanSimApp extends StatefulWidget {
   const RamadanSimApp({super.key});
@@ -23,7 +23,6 @@ class _RamadanSimAppState extends State<RamadanSimApp> {
   RuntimeContext? _runtimeContext;
   AppScreen _screen = AppScreen.genderQuestion;
   bool _accelerometerGranted = false;
-  bool _isRequestingAccelerometer = false;
   double _lastRunSeconds = 0;
 
   Future<void> _selectParticipantType(ParticipantType type) async {
@@ -32,27 +31,13 @@ class _RamadanSimAppState extends State<RamadanSimApp> {
     setState(() {
       _participantType = type;
       _runtimeContext = runtimeContext;
-      _accelerometerGranted = false;
-      _screen = runtimeContext.needsBrowserAccelerometerPrompt
-          ? AppScreen.accelerometerPrompt
-          : AppScreen.ready;
+      _accelerometerGranted = runtimeContext.motionSupport != MotionSupport.browserAccelerometer;
+      _screen = AppScreen.caution;
     });
   }
 
-  Future<void> _enableBrowserAccelerometer() async {
+  void _showReadyScreen() {
     setState(() {
-      _isRequestingAccelerometer = true;
-    });
-
-    final granted = await requestBrowserAccelerometerAccess();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _accelerometerGranted = granted;
-      _isRequestingAccelerometer = false;
       _screen = AppScreen.ready;
     });
   }
@@ -84,10 +69,7 @@ class _RamadanSimAppState extends State<RamadanSimApp> {
         AppScreen.genderQuestion => GenderQuestionScreen(
           onSelected: _selectParticipantType,
         ),
-        AppScreen.accelerometerPrompt => AccelerometerPromptScreen(
-          isRequesting: _isRequestingAccelerometer,
-          onEnable: _enableBrowserAccelerometer,
-        ),
+        AppScreen.caution => CautionScreen(onContinue: _showReadyScreen),
         AppScreen.ready => ReadyScreen(
           participantType: _participantType!,
           runtimeContext: _runtimeContext!,
@@ -108,10 +90,50 @@ class _RamadanSimAppState extends State<RamadanSimApp> {
 
   String _playerAssetPath(ParticipantType participantType) {
     return switch (participantType) {
-      ParticipantType.man => 'assets/rs_man.png',
-      ParticipantType.woman => 'assets/rs_woman.png',
-      ParticipantType.other => 'assets/rs_other.png',
+      ParticipantType.man => 'assets/rs_man.webp',
+      ParticipantType.woman => 'assets/rs_woman.webp',
+      ParticipantType.other => 'assets/rs_other.webp',
     };
+  }
+}
+
+class CautionScreen extends StatelessWidget {
+  const CautionScreen({super.key, required this.onContinue});
+
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    return _RetroPage(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const _BigQuestionPanel(text: 'CAUTON!!!', fontSize: 56),
+          const SizedBox(height: 28),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
+            color: const Color(0xFFEEE7CC),
+            child: const Text(
+              'This is a very realistic ramadan simulator. We take no responsibility for any damages that may occur',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          _GiantChoiceButton(
+            label: 'I UNDERSTAND',
+            buttonColor: const Color(0xFF7DFF72),
+            fullWidth: true,
+            onPressed: onContinue,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -163,54 +185,6 @@ class GenderQuestionScreen extends StatelessWidget {
   }
 }
 
-class AccelerometerPromptScreen extends StatelessWidget {
-  const AccelerometerPromptScreen({
-    super.key,
-    required this.onEnable,
-    required this.isRequesting,
-  });
-
-  final VoidCallback onEnable;
-  final bool isRequesting;
-
-  @override
-  Widget build(BuildContext context) {
-    return _RetroPage(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _BigQuestionPanel(
-            text: 'Browser accelerometer needed',
-            fontSize: 34,
-          ),
-          const SizedBox(height: 22),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            color: const Color(0xFFEEE7CC),
-            child: const Text(
-              'You are on a phone browser. Allow motion access so the game can use the accelerometer.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _GiantChoiceButton(
-            label: isRequesting ? 'WAIT...' : 'ALLOW',
-            buttonColor: const Color(0xFF7DFF72),
-            fullWidth: true,
-            onPressed: isRequesting ? () {} : onEnable,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class ReadyScreen extends StatelessWidget {
   const ReadyScreen({
     super.key,
@@ -232,12 +206,6 @@ class ReadyScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const _BigQuestionPanel(text: 'Ready?', fontSize: 56),
-          const SizedBox(height: 28),
-          _InfoPanel(text: 'Selected: ${participantType.name.toUpperCase()}'),
-          const SizedBox(height: 16),
-          _InfoPanel(text: 'Platform: ${_platformLabel(runtimeContext.mode)}'),
-          const SizedBox(height: 16),
-          _InfoPanel(text: 'Motion: ${_motionLabel()}'),
           const SizedBox(height: 24),
           _GiantChoiceButton(
             label: 'START',
@@ -250,26 +218,6 @@ class ReadyScreen extends StatelessWidget {
     );
   }
 
-  String _motionLabel() {
-    return switch (runtimeContext.motionSupport) {
-      MotionSupport.none => 'NONE',
-      MotionSupport.deviceAccelerometer => 'DEVICE ACCELEROMETER',
-      MotionSupport.browserAccelerometer =>
-        accelerometerGranted
-            ? 'BROWSER ACCELEROMETER ENABLED'
-            : 'BROWSER ACCELEROMETER NOT GRANTED',
-    };
-  }
-
-  String _platformLabel(RuntimeMode mode) {
-    return switch (mode) {
-      RuntimeMode.desktopBrowser => 'DESKTOP BROWSER',
-      RuntimeMode.mobileBrowser => 'MOBILE BROWSER',
-      RuntimeMode.androidApp => 'ANDROID APP',
-      RuntimeMode.iosApp => 'IOS APP',
-      RuntimeMode.other => 'OTHER',
-    };
-  }
 }
 
 class BrokeFastScreen extends StatelessWidget {
@@ -400,33 +348,6 @@ class _BigQuestionPanel extends StatelessWidget {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-          color: Colors.black,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoPanel extends StatelessWidget {
-  const _InfoPanel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD8D0B5),
-        border: Border.all(color: Colors.black, width: 3),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 28,
           fontWeight: FontWeight.bold,
           color: Colors.black,
         ),
