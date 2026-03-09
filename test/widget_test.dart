@@ -45,8 +45,8 @@ void main() {
     );
 
     expect(find.text('You just broke your fast'), findsOneWidget);
-    expect(find.text('you fasted 12.3 seconds'), findsOneWidget);
-    expect(find.text("that's like 0.0142% of the day"), findsOneWidget);
+    expect(find.text('you fasted a total of 12.3 seconds'), findsOneWidget);
+    expect(find.text("that's like 0.014% of the day"), findsOneWidget);
     expect(find.text(':( '), findsOneWidget);
     expect(find.text('TRY AGAIN'), findsOneWidget);
     expect(find.text('(but if its your birthsday its fine)'), findsOneWidget);

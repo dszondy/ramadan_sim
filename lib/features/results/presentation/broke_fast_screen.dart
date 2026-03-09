@@ -18,9 +18,10 @@ class BrokeFastScreen extends StatelessWidget {
   String get _fastedDayPercentageText {
     final percentage = (survivalSeconds / _secondsPerDay) * 100;
 
-    for (var decimals = 4; decimals <= 8; decimals++) {
+    for (var decimals = 2; decimals <= 10; decimals++) {
       final formatted = percentage.toStringAsFixed(decimals);
-      if (double.parse(formatted) > 0) {
+      final nonZeroDigits = formatted.replaceAll(RegExp(r'[^1-9]'), '').length;
+      if (nonZeroDigits >= 2) {
         return formatted;
       }
     }
