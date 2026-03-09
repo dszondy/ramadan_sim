@@ -97,7 +97,7 @@ class BrokeFastScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           const Text(
-            '(but if its your birthsday its fine)',
+            '(but if its your birthday its fine)',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
