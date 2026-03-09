@@ -1,6 +1,8 @@
 # Ramadan Sim
 
-I vibecoded this in 30 min for my friend's birthday 🎉🎂🥳
+I vibecoded this in 30 min for my friend's birthday 🎉🎂🥳 Who will only get cake after sunset this year.
+
+Try it [Here](https://dszondy.github.io/ramadan_sim/)
 
 ## GitHub Pages
 

@@ -61,7 +61,6 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
   bool _gameOverTriggered = false;
   bool _moveLeftPressed = false;
   bool _moveRightPressed = false;
-  double? _touchTargetWorldX;
   double? _touchPointerScreenX;
   String? _resolvedBackgroundAssetPath;
   int _backgroundLoadGeneration = 0;
@@ -101,7 +100,6 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
     _gameOverTriggered = false;
     _moveLeftPressed = false;
     _moveRightPressed = false;
-    _touchTargetWorldX = null;
     _touchPointerScreenX = null;
     _obstacles = List.generate(_obstacleCount, _createObstacle);
   }
@@ -268,18 +266,20 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
       final playerScreenCenterX = _playerWorldX - currentCameraX;
       final deltaToTouch = _touchPointerScreenX! - playerScreenCenterX;
       if (deltaToTouch.abs() >= _touchDeadZone) {
-        steeringIntent += deltaToTouch.sign;
-      }
-    } else if (_touchTargetWorldX != null) {
-      final deltaToTarget = _touchTargetWorldX! - _playerWorldX;
-      if (deltaToTarget.abs() < 6) {
-        _touchTargetWorldX = null;
+        final touchIntent = (deltaToTouch / (_viewportWidth / 2)).clamp(
+          -1.0,
+          1.0,
+        );
+        steeringIntent += touchIntent;
+        _playerVelocity = touchIntent * _playerMaxSpeed;
       } else {
-        steeringIntent += deltaToTarget.sign;
+        _playerVelocity = 0;
       }
     }
 
-    if (steeringIntent != 0) {
+    if (_touchPointerScreenX != null) {
+      _playerVelocity = _playerVelocity.clamp(-_playerMaxSpeed, _playerMaxSpeed);
+    } else if (steeringIntent != 0) {
       _playerVelocity +=
           steeringIntent.clamp(-1.0, 1.0) * _playerAcceleration * elapsed;
     } else {
@@ -372,7 +372,6 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
         if (isRightKey) {
           _moveRightPressed = true;
         }
-        _touchTargetWorldX = null;
         _touchPointerScreenX = null;
       });
       return KeyEventResult.handled;
@@ -471,11 +470,9 @@ class _FallingObjectGameScreenState extends State<FallingObjectGameScreen> {
                   if (!_keyboardFocusNode.hasFocus) {
                     _keyboardFocusNode.requestFocus();
                   }
-                  _touchTargetWorldX = event.localPosition.dx + cameraX;
                   _touchPointerScreenX = event.localPosition.dx;
                 },
                 onPointerMove: (event) {
-                  _touchTargetWorldX = event.localPosition.dx + cameraX;
                   _touchPointerScreenX = event.localPosition.dx;
                 },
                 onPointerUp: (_) {

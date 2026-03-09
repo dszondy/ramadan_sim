@@ -1,8 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 
-import 'package:ramadan_sim/game_screen.dart';
-import 'package:ramadan_sim/main.dart';
+import 'package:ramadan_sim/app/ramadan_sim_app.dart';
+import 'package:ramadan_sim/features/game/presentation/game_screen.dart';
+import 'package:ramadan_sim/features/results/presentation/broke_fast_screen.dart';
 
 void main() {
   testWidgets('selecting a choice can reach the game screen', (
@@ -44,7 +45,8 @@ void main() {
     );
 
     expect(find.text('You just broke your fast'), findsOneWidget);
-    expect(find.text('you lasted a total 12.3 seconds'), findsOneWidget);
+    expect(find.text('you fasted 12.3 seconds'), findsOneWidget);
+    expect(find.text("that's like 0.0142% of the day"), findsOneWidget);
     expect(find.text(':( '), findsOneWidget);
     expect(find.text('TRY AGAIN'), findsOneWidget);
     expect(find.text('(but if its your birthsday its fine)'), findsOneWidget);
